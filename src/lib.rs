@@ -1,6 +1,7 @@
 #![cfg(target_os = "windows")]
 
 extern crate libc;
+extern crate image;
 
 extern crate winapi;
 extern crate kernel32;
@@ -10,10 +11,8 @@ extern crate gdi32;
 
 mod win32;
 mod bitmap;
-mod painter;
 
 pub use bitmap::*;
-pub use painter::Painter;
 
 use std::cell::RefCell;
 use std::result::Result;
@@ -105,7 +104,7 @@ impl Rect {
 
    #[inline]
    pub fn inside(&self, x: i32, y: i32) -> bool {
-       self.left >= x && self.right <= x && self.top >= y && self.bottom <= y
+       self.left <= x && x <= self.right && self.top <= y && y <= self.bottom
    }
 
    pub fn intersect(&self, r: Rect) -> Rect {
@@ -194,12 +193,26 @@ pub struct Config {
    scale: u32,
 }
 
+pub trait Painter {
+   fn clip_reset(&self);
+   fn clip_set(&self, rect: Rect);
+
+   fn pixel(&self, x: i32, y: i32, color: u8);
+
+   fn clear(&self, color: u8);
+   fn rect_stroke(&self, rect: Rect, color: u8);
+   fn rect_fill(&self, rect: Rect, color: u8);
+
+   fn line(&self, x1: i32, y1: i32, x2: i32, y2: i32, color: u8);
+}
+
 pub trait Application : Sized {
    fn new(ctx: &Context) -> Self;
 
    fn step(&mut self, ctx: &Context) -> bool { !ctx.key_pressed(Key::Escape) }
    fn paint(&self, painter: &Painter);
 }
+
 
 use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT};
 static IS_TINY_CONTEXT_ALIVE: AtomicBool = ATOMIC_BOOL_INIT;
@@ -208,6 +221,7 @@ static IS_TINY_CONTEXT_ALIVE: AtomicBool = ATOMIC_BOOL_INIT;
 pub const TRANSPARENT: u8 = 0;
 pub const BLACK: u8 = 1;
 pub const WHITE: u8 = 2;
+
 
 pub struct Context {
    palette: RefCell<Palette>,
@@ -237,14 +251,6 @@ impl Context {
        self.palette.borrow_mut().add_color(color)
    }
 
-   pub fn bitmap_load(&self, path: &str) -> Result<Bitmap, String> {
-      Err(String::from("Could not load image"))
-   }
-
-   pub fn bitmap_load_from_memory(&self, data: &[u8]) -> Result<Bitmap, String> {
-      Err(String::from("Could not load image"))
-   }
-
    pub fn key_down(&self, key: Key) -> bool {
        self.window.key_state[key as usize]
    }
@@ -254,9 +260,11 @@ impl Context {
    }
 }
 
+
 fn to_milisec(duration: Duration) -> f64 {
    (duration.as_secs() as f64 * 1_000f64) + (duration.subsec_nanos() as f64 / 1_000_000f64)
 }
+
 
 pub fn run<T: Application>(title: &str, width: u32, height: u32, scale: u32) -> Result<(), String> {
    use std::sync::atomic::Ordering;
