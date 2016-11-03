@@ -175,14 +175,14 @@ impl Palette {
    }
 
    fn add_color(&mut self, color: Color) -> u8 {
-       for i in 0..self.colors.len() {
-           if self.colors[i].rgba == color.rgba {
-               return i as u8;
-           }
-       }
+      for i in 0..self.colors.len() {
+         if self.colors[i].rgba == color.rgba {
+            return i as u8;
+         }
+      }
 
-       self.colors.push(color);
-       (self.colors.len() - 1) as u8
+      self.colors.push(color);
+      (self.colors.len() - 1) as u8
    }
 }
 
