@@ -148,4 +148,22 @@ impl<'a> Painter for BitmapPainter<'a> {
          }
       }
    }
+
+   fn blit(&self, source: &Bitmap, x0: i32, y0: i32, source_rect: Rect) {
+      let clip = self.clip.borrow();
+
+      let source_pixels = source.pixels.borrow();
+      let mut target_pixels = self.target.pixels.borrow_mut();
+
+      for y in source_rect.top..source_rect.bottom {
+         for x in source_rect.left..source_rect.right {
+            let target_x = x0 + x;
+            let target_y = y0 + y;
+
+            if clip.inside(target_x, target_y) {
+               target_pixels[(target_x + target_y * self.target.width as i32) as usize] = source_pixels[(x + y * source.width as i32) as usize];
+            }
+         }
+      }
+   }
 }
