@@ -206,7 +206,7 @@ pub trait Painter {
    fn rect_stroke(&self, rect: Rect, color: u8);
    fn rect_fill(&self, rect: Rect, color: u8);
 
-   fn blit(&self, sprite: &Bitmap, x: i32, y: i32, source: Rect);
+   fn blit(&self, x: i32, y: i32, source: &Bitmap, source_rect: Rect);
 }
 
 pub trait Application : Sized {

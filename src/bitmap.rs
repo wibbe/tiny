@@ -149,7 +149,7 @@ impl<'a> Painter for BitmapPainter<'a> {
       }
    }
 
-   fn blit(&self, source: &Bitmap, x0: i32, y0: i32, source_rect: Rect) {
+   fn blit(&self, x0: i32, y0: i32, source: &Bitmap, source_rect: Rect) {
       let clip = self.clip.borrow();
 
       let source_pixels = source.pixels.borrow();
