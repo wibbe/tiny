@@ -1,15 +1,18 @@
-#![cfg(target_os = "windows")]
-
 extern crate libc;
 extern crate image;
 
-extern crate winapi;
-extern crate kernel32;
-extern crate user32;
-extern crate shell32;
-extern crate gdi32;
+#[cfg(target_os = "windows")]
+mod platform {
+    extern crate winapi;
+    extern crate kernel32;
+    extern crate user32;
+    extern crate shell32;
+    extern crate gdi32;
 
-mod win32;
+    mod windows;
+    pub use self::windows::*;
+}
+
 mod bitmap;
 
 pub use bitmap::*;
@@ -229,7 +232,7 @@ pub const WHITE: u8 = 2;
 pub struct Context {
    palette: RefCell<Palette>,
    canvas: Bitmap,
-   window: win32::Window,
+   window: platform::Window,
 
    frame_time: f64,
    step_time: f64,
@@ -238,7 +241,7 @@ pub struct Context {
 }
 
 impl Context {
-   fn new(window: win32::Window, config: &Config) -> Context {
+   fn new(window: platform::Window, config: &Config) -> Context {
       Context {
          palette: RefCell::new(Palette::new()),
          canvas: Bitmap::new(config.width, config.height),
@@ -286,7 +289,7 @@ pub fn run<T: Application>(title: &str, width: u32, height: u32, scale: u32) -> 
 
    println!("Starting '{}' with resolution {}x{} at scale {}", config.title, config.width, config.height, config.scale);
 
-   let mut context = match win32::Window::new(&config) {
+   let mut context = match platform::Window::new(&config) {
       Ok(window) => Context::new(window, &config),
       Err(err) => return Err(err),
    };
