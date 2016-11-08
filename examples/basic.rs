@@ -2,20 +2,27 @@
 extern crate tiny;
 
 use tiny::*;
+use std::path::Path;
 
 struct App {
    red: u8,
    green: u8,
    blue: u8,
+   font: Font,
 }
 
 
 impl tiny::Application for App {
    fn new(ctx: &tiny::Context) -> App {
+      let font_bitmap = Bitmap::load(ctx, Path::new("res/font.png")).unwrap();
+
+      println!("w: {} h: {}", font_bitmap.width, font_bitmap.height);
+
       App {
          red: ctx.palette_add(Color::new(255, 0, 0, 255)),
          green: ctx.palette_add(Color::new(30, 255, 40, 255)),
          blue: ctx.palette_add(Color::new(30, 40, 255, 255)),
+         font: Font::new(font_bitmap, 4, 7),
       }
    }
    
@@ -31,6 +38,8 @@ impl tiny::Application for App {
       painter.rect_fill(Rect::new(154, 154, 157, 157), self.green);
 
       painter.line(4, 4, 156, 156, self.blue);
+
+      painter.text(10, 10, "Hello World!", WHITE, &self.font);
    }
 }
 

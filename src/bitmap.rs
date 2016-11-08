@@ -11,8 +11,8 @@ use image::GenericImage;
 
 pub struct Bitmap {
    pixels: RefCell<Vec<u8>>,
-   width: u32,
-   height: u32,
+   pub width: u32,
+   pub height: u32,
 }
 
 impl Bitmap {
@@ -149,7 +149,7 @@ impl<'a> Painter for BitmapPainter<'a> {
       }
    }
 
-   fn blit(&self, x0: i32, y0: i32, source: &Bitmap, source_rect: Rect) {
+   fn blit(&self, x0: i32, y0: i32, source: &Bitmap, source_rect: Rect, flags: u32, color: u8) {
       let clip = self.clip.borrow();
 
       let source_pixels = source.pixels.borrow();
@@ -157,11 +157,50 @@ impl<'a> Painter for BitmapPainter<'a> {
 
       for y in source_rect.top..source_rect.bottom {
          for x in source_rect.left..source_rect.right {
-            let target_x = x0 + x;
-            let target_y = y0 + y;
+            let target_x = x0 + (x - source_rect.left);
+            let target_y = y0 + (y - source_rect.top);
+
+            let sx = if (flags & DRAW_FLIP_H) > 0 { source.width as i32 - x } else { x };
 
             if clip.inside(target_x, target_y) {
-               target_pixels[(target_x + target_y * self.target.width as i32) as usize] = source_pixels[(x + y * source.width as i32) as usize];
+               let target_idx = (target_x + target_y * self.target.width as i32) as usize;
+               let source_idx = (sx + y * source.width as i32) as usize;
+               let source = source_pixels[source_idx];
+               let target  = target_pixels[target_idx];
+
+               if flags & DRAW_MASK > 0 {
+                  target_pixels[target_idx] = if source > 0 { color } else { target };
+               } else {
+                  target_pixels[target_idx] = if source > 0 { source } else { target };
+               }
+            }
+         }
+      }
+   }
+
+   fn text(&self, x: i32, y: i32, text: &str, color: u8, font: &Font) {
+      let mut x_curr = x; 
+      let mut y_curr = y;
+
+      let chars_per_row = font.bitmap.width / font.char_width as u32;
+
+      for ch in text.chars() {
+         let idx = ch as u32;
+         if idx < 256 {
+            let ch_x = (idx % chars_per_row) as i32;
+            let ch_y = (idx / chars_per_row) as i32;
+
+            match ch {
+               ' ' => x_curr += font.char_width,
+               '\t' => x_curr += font.char_width,
+               '\n' => {
+                  x_curr = x;
+                  y_curr += (font.char_height as f32 * 1.5) as i32;
+               },
+               _ => {
+                  self.blit(x_curr, y_curr, &font.bitmap, Rect::new_size(ch_x * font.char_width, ch_y * font.char_height, font.char_width, font.char_height), DRAW_MASK, color);
+                  x_curr += font.char_width;
+               },
             }
          }
       }

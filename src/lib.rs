@@ -14,7 +14,6 @@ mod platform {
 }
 
 mod bitmap;
-
 pub use bitmap::*;
 
 use std::cell::RefCell;
@@ -22,6 +21,7 @@ use std::result::Result;
 use std::cmp;
 use std::time::{Instant, Duration};
 use std::thread;
+use std::fmt;
 
 
 #[derive(Copy, Clone, PartialEq)]
@@ -139,6 +139,13 @@ impl Rect {
    }
 }
 
+impl fmt::Display for Rect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "(left: {}, right: {}, top: {}, bottom: {})", self.left, self.right, self.top, self.bottom)
+    }
+}
+
+
 #[derive(Copy, Clone, PartialEq)]
 pub struct Color {
     pub rgba: u32,
@@ -163,6 +170,22 @@ impl Color {
 
    pub fn alpha(&self) -> u8 {
       ((self.rgba >> 24) & 0xff) as u8
+   }
+}
+
+pub struct Font {
+    pub bitmap: Bitmap,
+    pub char_width: i32,
+    pub char_height: i32,
+}
+
+impl Font {
+   pub fn new(bitmap: Bitmap, char_width: u32, char_height: u32) -> Font {
+      Font {
+         bitmap: bitmap,
+         char_width: char_width as i32,
+         char_height: char_height as i32,
+      }
    }
 }
 
@@ -196,6 +219,9 @@ pub struct Config {
    scale: u32,
 }
 
+pub const DRAW_FLIP_H: u32 = (1 << 1);
+pub const DRAW_MASK: u32 = (1 << 2);
+
 pub trait Painter {
    fn clip_reset(&self);
    fn clip_set(&self, rect: Rect);
@@ -209,7 +235,9 @@ pub trait Painter {
    fn rect_stroke(&self, rect: Rect, color: u8);
    fn rect_fill(&self, rect: Rect, color: u8);
 
-   fn blit(&self, x: i32, y: i32, source: &Bitmap, source_rect: Rect);
+   fn blit(&self, x: i32, y: i32, source: &Bitmap, source_rect: Rect, flags: u32, color: u8);
+
+   fn text(&self, x: i32, y: i32, text: &str, color: u8, font: &Font);
 }
 
 pub trait Application : Sized {
@@ -234,10 +262,12 @@ pub struct Context {
    canvas: Bitmap,
    window: platform::Window,
 
-   frame_time: f64,
-   step_time: f64,
-   paint_time: f64,
-   blit_time: f64,
+   pub show_performance: bool,
+
+   pub frame_time: f64,
+   pub step_time: f64,
+   pub paint_time: f64,
+   pub blit_time: f64,
 }
 
 impl Context {
@@ -246,6 +276,7 @@ impl Context {
          palette: RefCell::new(Palette::new()),
          canvas: Bitmap::new(config.width, config.height),
          window: window,
+         show_performance: false,
          frame_time: 0.0,
          step_time: 0.0,
          paint_time: 0.0,
