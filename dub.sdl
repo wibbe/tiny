@@ -1,0 +1,5 @@
+name "tiny"
+description "A tiny game library inspired by Punity"
+authors "Daniel Wiberg"
+copyright "Copyright © 2017, Daniel Wiberg"
+license "MIT"
