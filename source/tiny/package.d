@@ -1,5 +1,7 @@
 module tiny;
 
+import std.math : sqrt;
+
 enum Key {
 	Left = 37,
     Right = 39,
@@ -52,11 +54,39 @@ enum Key {
     Z = 90
 }
 
+struct Vector2(T) {
+    T x;
+    T y;
+
+    this(T x, T y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+alias Vector2!int Point;
+alias Vector2!float Vec2;
+
+float length(Vec2 v) {
+    return sqrt(v.x * v.x + v.y * v.y);
+}
+
+T dot(T) (Vector2!T lfs, Vector2!T rhs) {
+    return lfs.x * rhs.x + lfs.y * rhs.y;
+}
+
+
 struct Rect {
 	int left;
 	int right;
 	int top;
 	int bottom;
+
+	@property int width() { return right - left; }
+	@property int height() { return bottom - top; }
+
+    @property Point topLeft() { return Point(left, top); }
+    @property Point bottomRight() { return Point(right, bottom); }
 
 
 	this(int left, int right, int top, int bottom) {
@@ -82,4 +112,6 @@ struct Rect {
 		return this;
 	}
 }
+
+enum NULL_RECT = Rect(int.min, int.min, int.min, int.min);
 
