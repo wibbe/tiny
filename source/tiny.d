@@ -165,6 +165,7 @@ class Bitmap {
 
     @property int width() const { return _width; }
     @property int height() const { return _height; }
+    @property ubyte[] pixels() { return _pixels; }
 
     this(uint width, uint height) {
         _width = width;
