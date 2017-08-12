@@ -3,7 +3,7 @@ module tiny;
 import std.math : sqrt;
 import std.stdio : writeln;
 import std.datetime.stopwatch : StopWatch, AutoStart;
-import core.time;
+import core.time : Duration;
 import core.thread;
 
 
@@ -87,11 +87,12 @@ struct Vector2(T) {
 alias Vector2!int Point;
 alias Vector2!float Vec2;
 
+
 float length(Vec2 v) {
     return sqrt(v.x * v.x + v.y * v.y);
 }
 
-T dot(T) (Vector2!T lfs, Vector2!T rhs) {
+float dot(Vec2 lfs, Vec2 rhs) {
     return lfs.x * rhs.x + lfs.y * rhs.y;
 }
 
