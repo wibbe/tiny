@@ -4,7 +4,7 @@ import std.math : sqrt;
 import std.stdio : writeln;
 import std.datetime.stopwatch : StopWatch, AutoStart;
 import core.time : Duration;
-import core.thread;
+import core.thread : Thread, nsecs;
 
 
 enum Key {
@@ -238,7 +238,7 @@ class BitmapPainter : IPainter {
     }
 
     void pixel(int x, int y, ubyte color) {
-
+        _target.pixels[y * _target.width + x] = color;
     }
 
     void line(int x1, int y1, int x2, int y2, ubyte color) {
@@ -363,8 +363,7 @@ version (Windows) {
                                        GetModuleHandleW(null),
                                        null);
 
-         _window = new Win32Window(handle, width, height, windowWidth, windowHeight);
-         return _window;
+         return new Win32Window(handle, width, height, windowWidth, windowHeight);
       }
 
 
@@ -388,7 +387,6 @@ version (Windows) {
          _windowBmi.bmiHeader.biClrImportant = 0;
 
          _windowBuffer = new uint[canvasWidth * canvasHeight];
-
       }
 
       void show() {
@@ -409,7 +407,6 @@ version (Windows) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
          }
-
 
          return true;
       }
