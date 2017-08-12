@@ -2,6 +2,9 @@ module tiny;
 
 import std.math : sqrt;
 import std.stdio : writeln;
+import std.datetime.stopwatch : StopWatch, AutoStart;
+import core.time;
+import core.thread;
 
 
 enum Key {
@@ -194,11 +197,10 @@ interface IPainter {
 }
 
 interface IApplication {
-    static IApplication create(Context ctx);
-
-    bool step(Context ctx);
+    bool step();
     void paint(IPainter painter);
 }
+
 
 interface IWindow {
    void show();
@@ -207,54 +209,57 @@ interface IWindow {
    bool pump();
 }
 
-public class Context {
-   private bool _showPerformace = false;
-    
-   private double _frameTime = 0.0;
-   private double _stepTime = 0.0;
-   private double _paintTime = 0.0;
-   private double _blitTime = 0.0;
 
-   private Bitmap _canvas = null;
-   private IWindow _window = null;
+private __gshared IWindow _window = null;
 
-   @property IWindow window() { return _window; }
+@property IWindow window() { return _window; }
 
-
-    this(int width, int height, IWindow window) {
-       _canvas = new Bitmap(width, height);
-       _window = window;
-    }
-}
 
 bool run(T)(string title, int width, int height, int scaleFactor) {
-   IWindow window = null;
-   
    version (Windows) {
-      window = Win32Window.create(title, width, height, scaleFactor);
+      _window = Win32Window.create(title, width, height, scaleFactor);
    }
 
-   auto ctx = new Context(width, height, window);
-   auto app = T.create(ctx);
+   if (_window is null)
+      return false;
 
-   ctx._window.show();
+   Bitmap canvas = new Bitmap(width, height);
+
+   auto app = new T();
+   _window.show();
+
+   auto frameWatch = new StopWatch(AutoStart.yes);
+   enum TARGET_FRAME_TIME = nsecs(33333333);
 
    while (true) {
-      if (!ctx.window.pump())
+      frameWatch.reset();
+
+      if (!_window.pump())
          break;
 
-      if (!app.step(ctx))
+      auto pumpNow = frameWatch.peek();
+
+      if (!app.step())
          break;
-         
+
+      auto stepNow = frameWatch.peek();
+
       app.paint(null);
+
+      auto paintNow = frameWatch.peek();
+
+      auto frameDuration = frameWatch.peek();
+      if (frameDuration < TARGET_FRAME_TIME) {
+         auto sleepTime = TARGET_FRAME_TIME - frameDuration;
+         Thread.sleep(sleepTime);
+      }
    }
 
-   return false;
+   return true;
 }
 
-
+// -- Windows Implementation --------------------------------------------------
 version (Windows) {
-
    import core.sys.windows.windows;
    import std.utf : toUTF16z;
 
@@ -264,7 +269,6 @@ version (Windows) {
    private enum WND_CLASS_NAME = "TinyWindowClass";
    private enum WND_STYLE = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-   private __gshared Win32Window _window = null;
 
    private class Win32Window : IWindow {
       private HWND _handle;
@@ -277,9 +281,7 @@ version (Windows) {
       private int _windowHeight;
 
 
-      static Win32Window create(string title, int width, int height, int scaleFactor) {
-         writeln("Creating window with title: ", title);
-
+      static IWindow create(string title, int width, int height, int scaleFactor) {
          if (_window !is null)
             return null;
 
