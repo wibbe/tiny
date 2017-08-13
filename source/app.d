@@ -18,6 +18,17 @@ class TestApp : IApplication {
 	}
 }
 
+extern (C) int setup() {
+	writeln("Setup!");
+	return 0;
+}
+
+extern (C) void paint(IPainter painter) {
+	painter.clear(COLOR_WHITE);
+	painter.pixel(10, 10, COLOR_BLACK);
+	painter.pixel(painter.width - 10, painter.height - 10, COLOR_BLACK);
+}
+
 void main() {
 	run!TestApp("Test App", 320, 240, 2);
 }

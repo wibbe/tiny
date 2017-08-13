@@ -306,6 +306,8 @@ private __gshared double _blitTime = 0.0;
 @property double stepTime() { return _stepTime; }
 @property double paintTime() { return _paintTime; }
 
+extern (C) int setup();
+extern (C) void paint(IPainter painter);
 
 bool run(T)(string title, int width, int height, int scaleFactor) {
    version (Windows) {
@@ -326,6 +328,8 @@ bool run(T)(string title, int width, int height, int scaleFactor) {
    auto frameWatch = new StopWatch(AutoStart.yes);
    enum TARGET_FRAME_TIME = nsecs(33333333);
 
+   setup();
+
 
    while (true) {
       frameWatch.reset();
@@ -339,7 +343,7 @@ bool run(T)(string title, int width, int height, int scaleFactor) {
       auto stepNow = frameWatch.peek();
       _stepTime = cast(double)stepNow.split!("nsecs").nsecs / 1_000_000_000.0;
 
-      app.paint(canvasPainter);
+      paint(canvasPainter);
 
       auto paintNow = frameWatch.peek();
       _paintTime = (cast(double)paintNow.split!("nsecs").nsecs / 1_000_000_000.0) - _stepTime;
