@@ -212,10 +212,11 @@ class BitmapPainter : IPainter {
 
    this(Bitmap target) {
       _target = target;
+      _clip = Rect(0, target.width - 1, 0, target.height - 1);
    }
 
    void clipReset() {
-
+      _clip = Rect(0, _target.width - 1, 0, _target.height - 1);
    }
 
    void clipSet(Rect rect) {
@@ -232,7 +233,8 @@ class BitmapPainter : IPainter {
    }
 
    void pixel(int x, int y, ubyte color) {
-      _target.pixels[y * _target.width + x] = color;
+      if (_clip.inside(x, y))
+         _target.pixels[y * _target.width + x] = color;
    }
 
    void line(int x1, int y1, int x2, int y2, ubyte color) {
@@ -508,6 +510,7 @@ version (Windows) {
    }
 
    extern (Windows) LRESULT wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+      Win32Window window = cast(Win32Window)_window;
 
       switch (message) {
          case WM_DESTROY:
