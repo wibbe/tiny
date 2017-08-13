@@ -3,6 +3,10 @@ import tiny;
 
 
 class TestApp : IApplication {
+
+	this() {
+	}
+
 	bool step() {
 		return true;
 	}
