@@ -8,6 +8,9 @@ class TestApp : IApplication {
 	}
 
 	void paint(IPainter painter) {
+		painter.clear(COLOR_WHITE);
+		painter.pixel(10, 10, COLOR_BLACK);
+		painter.pixel(painter.width - 10, painter.height - 10, COLOR_BLACK);
 	}
 }
 

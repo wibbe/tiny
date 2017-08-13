@@ -177,6 +177,81 @@ class Bitmap {
     }
 }
 
+class Palette {
+   private Color[] _colors;
+
+   @property Color[] colors() { return _colors; }
+
+
+   this() {
+      _colors = [ 
+         Color(0, 0, 0, 0),
+         Color(0, 0, 0, 255),
+         Color(255, 255, 255, 255)
+      ];
+   }
+
+   ubyte add_color(Color color) {
+      foreach (int i, Color c; _colors) {
+         if (c.rgba == color.rgba)
+            return cast(ubyte)i;
+      } 
+
+      _colors ~= color;
+      return cast(ubyte)(_colors.length - 1);
+   }
+}
+
+class BitmapPainter : IPainter {
+   private Bitmap _target = null;
+   private Rect _clip = NULL_RECT;
+
+   @property int width() { return _target.width; }
+   @property int height() { return _target.height; }
+
+
+   this(Bitmap target) {
+      _target = target;
+   }
+
+   void clipReset() {
+
+   }
+
+   void clipSet(Rect rect) {
+
+   }
+
+   void clear(ubyte color) {
+      int len = _target.width * _target.height;
+      ubyte[] pixels = _target.pixels;
+
+      for (int i = 0; i < len; ++i) {
+         pixels[i] = color;
+      }
+   }
+
+   void pixel(int x, int y, ubyte color) {
+      _target.pixels[y * _target.width + x] = color;
+   }
+
+   void line(int x1, int y1, int x2, int y2, ubyte color) {
+
+   }
+
+   void rectStroke(Rect rect, ubyte color) {
+
+   }
+
+   void rectFill(Rect rect, ubyte color) {
+
+   }
+
+   void blit(int x, int y, Bitmap source, Rect sourceRect, uint flags = 0, ubyte color = 0) {
+
+   }
+}
+
 
 enum : uint {
     DRAW_FLIP_H = (1 << 1),
@@ -184,18 +259,21 @@ enum : uint {
 }
 
 interface IPainter {
-    void clipReset();
-    void clipSet(Rect rect);
+   @property int width();
+   @property int height();
 
-    void clear(ubyte color);
+   void clipReset();
+   void clipSet(Rect rect);
 
-    void pixel(int x, int y, ubyte color);
-    void line(int x1, int y1, int x2, int y2, ubyte color);
+   void clear(ubyte color);
 
-    void rectStroke(Rect rect, ubyte color);
-    void rectFill(Rect rect, ubyte color);
+   void pixel(int x, int y, ubyte color);
+   void line(int x1, int y1, int x2, int y2, ubyte color);
 
-    void blit(int x, int y, Bitmap source, Rect sourceRect, uint flags = 0, ubyte color = 0);
+   void rectStroke(Rect rect, ubyte color);
+   void rectFill(Rect rect, ubyte color);
+
+   void blit(int x, int y, Bitmap source, Rect sourceRect, uint flags = 0, ubyte color = 0);
 }
 
 interface IApplication {
@@ -203,65 +281,28 @@ interface IApplication {
     void paint(IPainter painter);
 }
 
-
 interface IWindow {
    void show();
    void hide();
 
    bool pump();
-}
-
-class BitmapPainter : IPainter {
-    private Bitmap _target = null;
-    private Rect _clip = NULL_RECT;
-
-
-    this(Bitmap target) {
-        _target = target;
-    }
-
-    void clipReset() {
-
-    }
-
-    void clipSet(Rect rect) {
-
-    }
-
-    void clear(ubyte color) {
-        int len = _target.width * _target.height;
-        ubyte[] pixels = _target.pixels;
-
-        for (int i = 0; i < len; ++i) {
-            pixels[i] = color;
-        }
-    }
-
-    void pixel(int x, int y, ubyte color) {
-        _target.pixels[y * _target.width + x] = color;
-    }
-
-    void line(int x1, int y1, int x2, int y2, ubyte color) {
-
-    }
-
-    void rectStroke(Rect rect, ubyte color) {
-
-    }
-
-    void rectFill(Rect rect, ubyte color) {
-
-    }
-
-    void blit(int x, int y, Bitmap source, Rect sourceRect, uint flags = 0, ubyte color = 0) {
-
-    }
+   void paint(Bitmap image, Color[] palette);
 }
 
 
 private __gshared IWindow _window = null;
+private __gshared Palette _palette = null;
+
+private __gshared double _frameTime = 0.0;
+private __gshared double _stepTime = 0.0;
+private __gshared double _paintTime = 0.0;
+private __gshared double _blitTime = 0.0;
 
 @property IWindow window() { return _window; }
+@property Palette palette() { return _palette; }
+@property double frameTime() { return _frameTime; }
+@property double stepTime() { return _stepTime; }
+@property double paintTime() { return _paintTime; }
 
 
 bool run(T)(string title, int width, int height, int scaleFactor) {
@@ -273,6 +314,9 @@ bool run(T)(string title, int width, int height, int scaleFactor) {
       return false;
 
    Bitmap canvas = new Bitmap(width, height);
+   BitmapPainter canvasPainter = new BitmapPainter(canvas);
+
+   _palette = new Palette();
 
    auto app = new T();
    _window.show();
@@ -280,24 +324,30 @@ bool run(T)(string title, int width, int height, int scaleFactor) {
    auto frameWatch = new StopWatch(AutoStart.yes);
    enum TARGET_FRAME_TIME = nsecs(33333333);
 
+
    while (true) {
       frameWatch.reset();
 
       if (!_window.pump())
          break;
 
-      auto pumpNow = frameWatch.peek();
-
       if (!app.step())
          break;
 
       auto stepNow = frameWatch.peek();
+      _stepTime = cast(double)stepNow.split!("nsecs").nsecs / 1_000_000_000.0;
 
-      app.paint(null);
+      app.paint(canvasPainter);
 
       auto paintNow = frameWatch.peek();
+      _paintTime = (cast(double)paintNow.split!("nsecs").nsecs / 1_000_000_000.0) - _stepTime;
+
+      _window.paint(canvas, _palette.colors);
+      auto blitNow = frameWatch.peek();
 
       auto frameDuration = frameWatch.peek();
+      _frameTime = cast(double)frameDuration.split!("nsecs").nsecs / 1_000_000_000.0;
+
       if (frameDuration < TARGET_FRAME_TIME) {
          auto sleepTime = TARGET_FRAME_TIME - frameDuration;
          Thread.sleep(sleepTime);
@@ -409,6 +459,30 @@ version (Windows) {
          }
 
          return true;
+      }
+
+      void paint(Bitmap image, Color[] palette) {
+         auto pixels = image.pixels;
+
+         int i = 0;
+         for (int y = 0; y < _canvasHeight; y++) {
+            for (int x = 0; x < _canvasWidth; x++) {
+               _windowBuffer[i] = palette[pixels[x + (_canvasHeight - y - 1) * image.width]].rgba;
+               i += 1;
+            }
+         }
+
+         auto dc = GetDC(_handle);
+
+         StretchDIBits(dc,
+                       0, 0, _windowWidth, _windowHeight,
+                       0, 0, _canvasWidth, _canvasHeight,
+                       cast(VOID*)_windowBuffer.ptr,
+                       &_windowBmi,
+                       DIB_RGB_COLORS,
+                       SRCCOPY);
+
+         ReleaseDC(_handle, dc);
       }
 
       private static bool registerClass() {
