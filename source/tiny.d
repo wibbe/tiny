@@ -254,6 +254,13 @@ class BitmapPainter : IPainter {
    }
 }
 
+struct Config {
+   string title;
+   int width;
+   int height;
+   int scaleFactor;
+}
+
 
 enum : uint {
     DRAW_FLIP_H = (1 << 1),
@@ -278,18 +285,19 @@ interface IPainter {
    void blit(int x, int y, Bitmap source, Rect sourceRect, uint flags = 0, ubyte color = 0);
 }
 
-interface IApplication {
-    bool step();
-    void paint(IPainter painter);
-}
-
 interface IWindow {
    void show();
    void hide();
+   void setTitle(string title);
 
    bool pump();
    void paint(Bitmap image, Color[] palette);
 }
+
+
+extern (C) bool setup(Config* config);
+extern (C) void paint(IPainter painter);
+extern (C) bool step();
 
 
 private __gshared IWindow _window = null;
@@ -300,36 +308,36 @@ private __gshared double _stepTime = 0.0;
 private __gshared double _paintTime = 0.0;
 private __gshared double _blitTime = 0.0;
 
+private __gshared string _initialTitle = "Tiny";
+private __gshared int _initialWidth = 320;
+private __gshared int _initialHeight = 240;
+private __gshared int _initialScaleFactor = 4;
+
+
 @property IWindow window() { return _window; }
 @property Palette palette() { return _palette; }
 @property double frameTime() { return _frameTime; }
 @property double stepTime() { return _stepTime; }
 @property double paintTime() { return _paintTime; }
 
-extern (C) int setup();
-extern (C) void paint(IPainter painter);
 
-bool run(T)(string title, int width, int height, int scaleFactor) {
-   version (Windows) {
-      _window = Win32Window.create(title, width, height, scaleFactor);
-   }
+private bool run(T)() {
+   Bitmap canvas = new Bitmap(_initialWidth, _initialHeight);
+   BitmapPainter canvasPainter = new BitmapPainter(canvas);
+   _palette = new Palette();
 
+   Config config = Config("Tiny", 320, 240, 2);
+   if (!setup(&config))
+      return false;
+
+   _window = T.create(config.title, config.width, config.height, config.scaleFactor);
    if (_window is null)
       return false;
 
-   Bitmap canvas = new Bitmap(width, height);
-   BitmapPainter canvasPainter = new BitmapPainter(canvas);
-
-   _palette = new Palette();
-
-   auto app = new T();
    _window.show();
 
    auto frameWatch = new StopWatch(AutoStart.yes);
    enum TARGET_FRAME_TIME = nsecs(33333333);
-
-   setup();
-
 
    while (true) {
       frameWatch.reset();
@@ -337,7 +345,7 @@ bool run(T)(string title, int width, int height, int scaleFactor) {
       if (!_window.pump())
          break;
 
-      if (!app.step())
+      if (!step())
          break;
 
       auto stepNow = frameWatch.peek();
@@ -365,15 +373,36 @@ bool run(T)(string title, int width, int height, int scaleFactor) {
 
 // -- Windows Implementation --------------------------------------------------
 version (Windows) {
+   import core.runtime;
    import core.sys.windows.windows;
    import std.utf : toUTF16z;
+   import std.string;
 
    pragma(lib, "gdi32.lib");
    pragma(lib, "user32.lib");
 
    private enum WND_CLASS_NAME = "TinyWindowClass";
    private enum WND_STYLE = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+ 
 
+   extern (Windows) int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow) {
+      int result;
+
+      try
+      {
+         Runtime.initialize();
+         result = run!Win32Window() ? 1 : 0;
+         Runtime.terminate();
+      }
+      catch (Throwable e) 
+      {
+         MessageBoxA(null, e.toString().toStringz(), null, MB_ICONEXCLAMATION);
+         result = 0;
+      }
+
+      return result;
+   }
+   
 
    private class Win32Window : IWindow {
       private HWND _handle;
@@ -451,6 +480,10 @@ version (Windows) {
 
       void hide() {
          ShowWindow(_handle, SW_HIDE);
+      }
+
+      void setTitle(string title) {
+         SetWindowTextW(_handle, toUTF16z(title));
       }
 
       bool pump() {
