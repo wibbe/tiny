@@ -7,3 +7,4 @@ __test__*__
 /dub.selections.json
 /tiny.exe
 /tiny-test-library.exe
+/.vscode

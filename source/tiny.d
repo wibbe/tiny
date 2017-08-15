@@ -286,6 +286,8 @@ interface IPainter {
 }
 
 interface IWindow {
+   @property bool isFullscreen();
+
    void show();
    void hide();
    void setTitle(string title);
@@ -407,7 +409,9 @@ version (Windows) {
    private class Win32Window : IWindow {
       private HWND _handle;
       private BITMAPINFO _windowBmi;
+      private WINDOWPLACEMENT _fullscreenPlacement;
       private uint[] _windowBuffer;
+
 
       private int _canvasWidth;
       private int _canvasHeight;
@@ -472,6 +476,36 @@ version (Windows) {
          _windowBmi.bmiHeader.biClrImportant = 0;
 
          _windowBuffer = new uint[canvasWidth * canvasHeight];
+      }
+
+      @property bool isFullscreen() {
+         auto style = GetWindowLong(_handle, GWL_STYLE);
+         auto normal = style & WND_STYLE;
+         return !normal;
+      }
+
+      void toggleFullscreen() {
+         auto style = GetWindowLong(_handle, GWL_STYLE);
+         int normal = style & WND_STYLE;
+         
+         if (normal) {
+            MONITORINFO monitorInfo;
+
+            if (GetWindowPlacement(_handle, &_fullscreenPlacement) && GetMonitorInfo(MonitorFromWindow(_handle, MONITOR_DEFAULTTOPRIMARY), &monitorInfo)) {
+               SetWindowLong(_handle, GWL_STYLE, style & ~WND_STYLE);
+               SetWindowPos(_handle, HWND_TOP,
+                            monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top,
+                            monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+                            monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+                            SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            }            
+         } else {
+            SetWindowLong(_handle, GWL_STYLE, style | WND_STYLE);
+            SetWindowPlacement(_handle, &_fullscreenPlacement);
+            SetWindowPos(_handle, null, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+         }
       }
 
       void show() {
