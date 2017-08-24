@@ -8,7 +8,7 @@ import core.thread : Thread, nsecs;
 
 
 enum Key {
-	Left = 37,
+    Left = 37,
     Right = 39,
     Up = 38,
     Down = 40,
@@ -59,6 +59,7 @@ enum Key {
     Z = 90
 }
 
+
 struct Vector2(T) {
     T x;
     T y;
@@ -74,6 +75,10 @@ struct Vector2(T) {
     
     Vector2!T opBinary(string op)(Vector2!T v) const if (op == "-") {
         return Vector2!T(x - v.x, y - v.y);
+    }
+
+    Vector2!T opBinary(string op)(T v) const if (op == "*") {
+      return Vector2!T(x * v, y * v);
     }
 
     Vector2!T opUnary(string op : "-")() const {
@@ -191,7 +196,7 @@ class Palette {
       ];
    }
 
-   ubyte add_color(Color color) {
+   ubyte addColor(Color color) {
       foreach (int i, Color c; _colors) {
          if (c.rgba == color.rgba)
             return cast(ubyte)i;
@@ -296,79 +301,106 @@ interface IWindow {
    void paint(Bitmap image, Color[] palette);
 }
 
+public class Context {
+   private IWindow _window;
+   private Palette _palette;
+   private Bitmap _canvas;
 
-extern (C) bool setup(Config* config);
+   private double _frameTime;
+   private double _stepTime;
+   private double _paintTime;
+
+   private string _initialTitle = "Tiny";
+   private int _initialWidth = 320;
+   private int _initialHeight = 240;
+   private int _initialScaleFactor = 4;
+
+   @property IWindow window() { return _window; }
+   @property Bitmap canvas() { return _canvas; }
+   @property Palette palette() { return _palette; }
+
+   @property double frameTime() { return _frameTime; }
+   @property double stepTime() { return _stepTime; }
+   @property double paintTime() { return _paintTime; }
+
+
+
+   this() {
+      _window = null;
+      _canvas = null;
+      _palette = new Palette();
+   }
+
+   bool initialize(T)() {
+      _window = T.create(_initialTitle, _initialWidth, _initialHeight, _initialScaleFactor);
+      if (_window is null)
+         return false;
+
+      _canvas = new Bitmap(_initialWidth, _initialHeight);
+      return true;
+   }
+}
+
+
+private __gshared Context _globalContext = null;
+
+
+extern (C) bool setup(Context ctx);
+extern (C) bool step(Context ctx);
 extern (C) void paint(IPainter painter);
-extern (C) bool step();
 
 
-private __gshared IWindow _window = null;
-private __gshared Palette _palette = null;
+private bool run(T)() if (is(T == class)) {
 
-private __gshared double _frameTime = 0.0;
-private __gshared double _stepTime = 0.0;
-private __gshared double _paintTime = 0.0;
-private __gshared double _blitTime = 0.0;
-
-private __gshared string _initialTitle = "Tiny";
-private __gshared int _initialWidth = 320;
-private __gshared int _initialHeight = 240;
-private __gshared int _initialScaleFactor = 4;
-
-
-@property IWindow window() { return _window; }
-@property Palette palette() { return _palette; }
-@property double frameTime() { return _frameTime; }
-@property double stepTime() { return _stepTime; }
-@property double paintTime() { return _paintTime; }
-
-
-private bool run(T)() {
-   Bitmap canvas = new Bitmap(_initialWidth, _initialHeight);
-   BitmapPainter canvasPainter = new BitmapPainter(canvas);
-   _palette = new Palette();
-
-   Config config = Config("Tiny", 320, 240, 2);
-   if (!setup(&config))
+   if (_globalContext !is null)
       return false;
 
-   _window = T.create(config.title, config.width, config.height, config.scaleFactor);
-   if (_window is null)
+   _globalContext = new Context();
+
+   if (!setup(_globalContext))
       return false;
 
-   _window.show();
+   if (!_globalContext.initialize!T())
+      return false;
+
+   _globalContext.window.show();
 
    auto frameWatch = new StopWatch(AutoStart.yes);
    enum TARGET_FRAME_TIME = nsecs(33333333);
 
+   BitmapPainter canvasPainter = new BitmapPainter(_globalContext.canvas);
+
    while (true) {
       frameWatch.reset();
 
-      if (!_window.pump())
+      if (!_globalContext.window.pump())
          break;
 
-      if (!step())
+      if (!step(_globalContext))
          break;
 
       auto stepNow = frameWatch.peek();
-      _stepTime = cast(double)stepNow.split!("nsecs").nsecs / 1_000_000_000.0;
+      //_stepTime = cast(double)stepNow.split!("nsecs").nsecs / 1_000_000_000.0;
 
       paint(canvasPainter);
 
       auto paintNow = frameWatch.peek();
-      _paintTime = (cast(double)paintNow.split!("nsecs").nsecs / 1_000_000_000.0) - _stepTime;
+      //_paintTime = (cast(double)paintNow.split!("nsecs").nsecs / 1_000_000_000.0) - _stepTime;
 
-      _window.paint(canvas, _palette.colors);
+      _globalContext.window.paint(_globalContext.canvas, _globalContext.palette.colors);
       auto blitNow = frameWatch.peek();
 
       auto frameDuration = frameWatch.peek();
-      _frameTime = cast(double)frameDuration.split!("nsecs").nsecs / 1_000_000_000.0;
+      //_frameTime = cast(double)frameDuration.split!("nsecs").nsecs / 1_000_000_000.0;
 
       if (frameDuration < TARGET_FRAME_TIME) {
          auto sleepTime = TARGET_FRAME_TIME - frameDuration;
          Thread.sleep(sleepTime);
       }
    }
+
+   _globalContext.window.hide();
+   _globalContext = null;
 
    return true;
 }
@@ -412,6 +444,10 @@ version (Windows) {
       private WINDOWPLACEMENT _fullscreenPlacement;
       private uint[] _windowBuffer;
 
+      private bool[256] _keyState;
+      private bool[256] _keyDelta;
+      private int _keyModifiers;
+
 
       private int _canvasWidth;
       private int _canvasHeight;
@@ -420,9 +456,6 @@ version (Windows) {
 
 
       static IWindow create(string title, int width, int height, int scaleFactor) {
-         if (_window !is null)
-            return null;
-
          if (!registerClass())
             return null;
 
@@ -558,6 +591,10 @@ version (Windows) {
          ReleaseDC(_handle, dc);
       }
 
+      void onKeyDown(int key, int modifiers) {
+          _keyModifiers = modifiers;
+      }
+
       private static bool registerClass() {
          WNDCLASSEX def;
          def.cbSize = WNDCLASSEXW.sizeof;
@@ -581,7 +618,7 @@ version (Windows) {
    }
 
    extern (Windows) LRESULT wndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
-      Win32Window window = cast(Win32Window)_window;
+      Win32Window window = cast(Win32Window)_globalContext.window;
 
       switch (message) {
          case WM_DESTROY:
